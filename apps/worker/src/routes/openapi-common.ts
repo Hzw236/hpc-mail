@@ -91,8 +91,8 @@ const messageSummary = object({
 const { deletedAt: _deletedAt, ...summaryProperties } = messageSummary.properties as Record<string, Schema>;
 const attachment = object({ id: positiveId, filename: str, mimeType: str, size: int, contentId: str, disposition: str, url: str });
 const mailbox = object({ id: positiveId, address: str, domain: str, userId: positiveId, ownerUsername: str, displayName: str, messageCount: int, createdAt: date }, ['ownerUsername']);
-const user = object({ id: positiveId, username: str, role: { type: 'string', enum: ['admin', 'user'] }, createdAt: date, avatarUrl: nullable(str), twoFactorEnabled: bool });
-const { twoFactorEnabled: _twoFactorEnabled, ...adminUserProperties } = user.properties as Record<string, Schema>;
+const user = object({ id: positiveId, username: str, role: { type: 'string', enum: ['admin', 'user'] }, createdAt: date, avatarUrl: nullable(str), twoFactorEnabled: bool, receiveOnly: bool });
+const { twoFactorEnabled: _twoFactorEnabled, receiveOnly: _receiveOnly, ...adminUserProperties } = user.properties as Record<string, Schema>;
 const apiKey = object({ id: positiveId, name: str, keyPrefix: str, keySuffix: str, scopes: array({ type: 'string', enum: API_SCOPES }), rateLimit: positiveId,
   allowedIps: array(str), status: { type: 'string', enum: ['active', 'disabled', 'revoked'] }, expiresAt: nullable(date), lastUsedAt: nullable(date), createdAt: date, ownerUsername: str }, ['ownerUsername']);
 const delivery = object({ id: positiveId, messageId: nullable(positiveId), target: str,

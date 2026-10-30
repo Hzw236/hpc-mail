@@ -69,6 +69,7 @@ export const MessageRow = memo(function MessageRow({
   tapToSelect = false,
   onToggleSelect,
   shared = false,
+  canStar = true,
   trash = false,
   now,
   onOpenIntent,
@@ -86,6 +87,7 @@ export const MessageRow = memo(function MessageRow({
   onToggleSelect?: (id: number, event: MouseEvent) => void;
   /** 这封信来自共享给当前用户的邮箱（只读） */
   shared?: boolean;
+  canStar?: boolean;
   /** 回收站：不显示星标，显示剩余保留天数 */
   trash?: boolean;
   /** 相对时间的基准；由列表按分钟更新，memo 行才能刷新「n 分钟前」 */
@@ -236,7 +238,7 @@ export const MessageRow = memo(function MessageRow({
         </div>
       </div>
 
-      {!trash && (
+      {!trash && canStar && (
         <button
           type="button"
           aria-label={message.isStarred ? '取消星标' : '加星标'}

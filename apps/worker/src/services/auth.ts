@@ -10,6 +10,7 @@ import { createDb } from '../db/client.js';
 import { users } from '../db/schema.js';
 import { sha256Hex } from '../lib/crypto.js';
 import { AppError } from '../lib/errors.js';
+import { isReceiveOnly } from '../lib/receive-only.js';
 import { bumpCounter, minuteWindow, readCounter } from './rate-counter.js';
 import { signToken } from '../lib/jwt.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
@@ -103,6 +104,7 @@ function toSessionUser(row: typeof users.$inferSelect): SessionUser {
     createdAt: row.createdAt.toISOString(),
     avatarUrl: avatarUrl(row.id, row.avatarKey),
     twoFactorEnabled: !!row.totpEnabledAt,
+    receiveOnly: isReceiveOnly(row.role, row.mailboxPolicy),
   };
 }
 

@@ -39,6 +39,25 @@ async function custom() {
 }
 
 describe('邮箱权限弹窗', () => {
+  it('保存并回显仅收信限制，取消时恢复普通权限', async () => {
+    show();
+    await custom();
+    await userEvent.click(screen.getByRole('checkbox', { name: '仅收信' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存权限' }));
+    await waitFor(() => expect(mocks.updateUser).toHaveBeenCalledWith(8, {
+      mailboxPolicy: { receiveOnly: true, perUserLimit: 2, domains: [{ domain: 'public.example', perUserLimit: 1 }] },
+      expectedMailboxPolicyRevision: 7,
+    }));
+    cleanup();
+    show(user({ mailboxPolicy: { receiveOnly: true, perUserLimit: 2, domains: [] } }));
+    expect(await screen.findByRole('checkbox', { name: '仅收信' })).toBeChecked();
+    await userEvent.click(screen.getByRole('checkbox', { name: '仅收信' }));
+    await userEvent.click(screen.getByRole('button', { name: '保存权限' }));
+    await waitFor(() => expect(mocks.updateUser).toHaveBeenLastCalledWith(8, {
+      mailboxPolicy: { perUserLimit: 2, domains: [] }, expectedMailboxPolicyRevision: 7,
+    }));
+  });
+
   it('从公共配置初始化，授权私有域并保存独立总数、域名上限及版本', async () => {
     const { close } = show();
     await custom();

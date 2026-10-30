@@ -34,6 +34,7 @@ import { attachments as attachmentsTable, mailboxShares, mailboxes, messages, st
 import { signAttachment } from '../lib/crypto.js';
 import { chunk, D1_PAIR_BATCH } from '../lib/d1.js';
 import { AppError } from '../lib/errors.js';
+import { sharedMailAllowed } from '../lib/receive-only.js';
 import { decodeCursor, encodeCursor, pageHead } from '../lib/pagination.js';
 import { htmlToText } from '../lib/text.js';
 import type { Env, ExecCtx } from '../types.js';
@@ -171,7 +172,7 @@ function sharedAddressQuery(db: Db, userId: number) {
     .from(mailboxShares)
     .innerJoin(mailboxes, eq(mailboxes.id, mailboxShares.mailboxId))
     .innerJoin(users, eq(users.id, mailboxes.userId))
-    .where(and(eq(mailboxShares.userId, userId), eq(users.status, 'active')));
+    .where(and(eq(mailboxShares.userId, userId), eq(users.status, 'active'), sharedMailAllowed(userId)));
 }
 
 /**
@@ -685,6 +686,7 @@ async function assertVisible(db: Db, viewer: Viewer, row: VisibilityRow): Promis
           eq(mailboxShares.userId, scope.ownerId),
           eq(mailboxes.address, row.address),
           eq(users.status, 'active'),
+          sharedMailAllowed(scope.ownerId),
         ),
       )
       .get();

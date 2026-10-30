@@ -12,6 +12,7 @@ import { createDb } from '../db/client.js';
 import { apiRequestLogs } from '../db/schema.js';
 import { sha256Hex } from '../lib/crypto.js';
 import { AppError } from '../lib/errors.js';
+import { isReceiveOnly } from '../lib/receive-only.js';
 import { execCtx } from '../lib/http.js';
 import { ipInAllowList } from '../lib/ip-allowlist.js';
 import { getSettings, settingsQuery } from '../services/setting.js';
@@ -37,6 +38,7 @@ interface ApiKeyRecord {
   expires_at: number | null;
   user_status: UserStatus | null;
   role: Role | null;
+  mailbox_policy: string | null;
 }
 
 /**
@@ -46,7 +48,7 @@ interface ApiKeyRecord {
 async function loadSettingsAndKey(env: Env, keyHash: string | null): Promise<{ settings: Settings; record: ApiKeyRecord | null }> {
   if (!keyHash) return { settings: await getSettings(env), record: null };
   const keyStatement = env.db.prepare(`SELECT k.id, k.user_id, k.scopes, k.allowed_ips, k.rate_limit, k.status, k.expires_at,
-      u.status AS user_status, u.role
+      u.status AS user_status, u.role, u.mailbox_policy
     FROM api_keys k LEFT JOIN users u ON u.id = k.user_id WHERE k.key_hash = ?`).bind(keyHash);
   const query = settingsQuery(env);
   if ('cached' in query) return { settings: query.cached, record: await keyStatement.first<ApiKeyRecord>() };
@@ -96,6 +98,9 @@ export const apiKeyAuth: MiddlewareHandler<AppContext> = async (c, next) => {
     }
     if (!ipInAllowList(ip, row.allowedIps)) throw new AppError('forbidden', '来源 IP 不在白名单内');
 
+    if (isReceiveOnly(row.role ?? 'user', record.mailbox_policy)) {
+      throw new AppError('forbidden', '仅收信账号不允许使用 API Key');
+    }
     c.set('apiClientIp', ip);
     c.set('apiKey', {
       id: row.id,

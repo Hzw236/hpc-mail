@@ -101,7 +101,7 @@ async function lookupInbound(env: Env, ingestKey: string, address: string, domai
     env.db.prepare(HOSTED_AUTO_CLAIM_SQL).bind(address, domain),
     env.db.prepare(HOSTED_STATUS_SQL).bind(address, domain),
     env.db.prepare(NOTIFY_OWNER_IDS_SQL).bind(address),
-    env.db.prepare(`select "id", "status", "role", "notify_prefs" from "users" where "id" in (${NOTIFY_OWNER_IDS_SQL})`).bind(address),
+    env.db.prepare(`select "id", "status", "role", "notify_prefs", "mailbox_policy" from "users" where "id" in (${NOTIFY_OWNER_IDS_SQL})`).bind(address),
     env.db.prepare(`SELECT key, value FROM settings WHERE key IN (${LEGACY_NOTIFY_KEYS.map((_, i) => `?${i + 1}`).join(', ')})`)
       .bind(...LEGACY_NOTIFY_KEYS),
   ]);

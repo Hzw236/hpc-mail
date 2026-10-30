@@ -27,6 +27,7 @@ function sessionUserOf(user: AuthUser, overrideAvatarUrl?: string | null): Sessi
     avatarUrl:
       overrideAvatarUrl !== undefined ? overrideAvatarUrl : avatarUrl(user.id, user.avatarKey),
     twoFactorEnabled: user.twoFactorEnabled,
+    receiveOnly: user.receiveOnly === true,
   };
 }
 

@@ -76,6 +76,8 @@ export interface SessionUser {
   avatarUrl: string | null;
   /** 是否已启用两步验证 */
   twoFactorEnabled: boolean;
+  /** 普通用户的仅收信限制；缺省兼容旧服务端。 */
+  receiveOnly?: boolean;
 }
 
 /** 头像上传：base64 图片 + MIME 类型 */

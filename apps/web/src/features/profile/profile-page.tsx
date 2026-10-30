@@ -26,7 +26,7 @@ const SECTIONS = [
 ] as const;
 
 /** 页内分区导航：滚动到对应区块并把焦点交给它，不改 URL */
-function SectionNav() {
+function SectionNav({ receiveOnly = false }: { receiveOnly?: boolean }) {
   const jump = (id: string) => {
     const target = document.getElementById(id);
     if (!target) return;
@@ -35,7 +35,7 @@ function SectionNav() {
   };
   return (
     <nav aria-label="设置分区" className="-mx-1 mb-4 flex gap-1 overflow-x-auto px-1 pb-1">
-      {SECTIONS.map((section) => (
+      {SECTIONS.filter((section) => !receiveOnly || !['profile-notify', 'profile-delivery'].includes(section.id)).map((section) => (
         <button
           key={section.id}
           type="button"
@@ -119,8 +119,8 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="个人设置" description="管理你的头像、账户安全，以及邮件的转发与通知。" />
-      <SectionNav />
+      <PageHeader title="个人设置" description={user.receiveOnly ? '管理你的头像和账户安全。' : '管理你的头像、账户安全，以及邮件的转发与通知。'} />
+      <SectionNav receiveOnly={user.receiveOnly} />
 
       <div className="flex flex-col gap-4">
         <section id="profile-avatar" tabIndex={-1} className="scroll-mt-20 rounded-lg border border-line bg-surface p-5 focus:outline-none">
@@ -177,10 +177,12 @@ export function ProfilePage() {
 
         <TwoFactorSection id="profile-2fa" />
 
-        <ForwardingSection id="profile-notify" />
-        <div id="profile-delivery" tabIndex={-1} className="scroll-mt-20 focus:outline-none">
-          <NotificationHealthPanel />
-        </div>
+        {!user.receiveOnly && <>
+          <ForwardingSection id="profile-notify" />
+          <div id="profile-delivery" tabIndex={-1} className="scroll-mt-20 focus:outline-none">
+            <NotificationHealthPanel />
+          </div>
+        </>}
       </div>
 
       <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />

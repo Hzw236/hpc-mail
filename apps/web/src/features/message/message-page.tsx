@@ -155,7 +155,7 @@ export function MessagePage() {
   const ownedLoaded = ownedMailboxes !== undefined;
   const shared = Boolean(message && personalView && ownedLoaded && !ownedMailboxes.some((box) => box.address === message.address));
   const readStateWritable = !auditUser && (!personalView || ownedLoaded) && !shared;
-  const canActAsOwner = readStateWritable;
+  const canActAsOwner = readStateWritable && !currentUser.receiveOnly;
 
   // 直链/新标签页打开时无历史可退，回退到收件箱而非停在已 404 的详情
   const goBack = () => {
@@ -256,7 +256,7 @@ export function MessagePage() {
   const reply = () => message && canActAsOwner && navigate('/compose', { state: buildReply(message) });
   const replyAll = () => message && canActAsOwner && navigate('/compose', { state: buildReplyAll(message) });
   const forward = () => message && canActAsOwner && navigate('/compose', { state: buildForward(message) });
-  const toggleStar = () => message && star.mutate({ id: message.id, starred: !message.isStarred });
+  const toggleStar = () => message && !currentUser.receiveOnly && star.mutate({ id: message.id, starred: !message.isStarred });
   const remove = () => {
     if (canActAsOwner && !deleteMutation.isPending) deleteMutation.mutate([messageId]);
   };
@@ -269,7 +269,7 @@ export function MessagePage() {
       a: () => void replyAll(),
       f: () => void forward(),
       s: () => void toggleStar(),
-      t: () => (translation.available ? translation.toggle() : false),
+      t: () => (translation.available && !currentUser.receiveOnly ? translation.toggle() : false),
       e: remove,
       '#': remove,
       u: goBack,
@@ -321,7 +321,7 @@ export function MessagePage() {
   const sendIssue = outbound && (message.errorDetail || message.status === 'failed' || message.status === 'bounced');
   const failedRecipients = message.recipientOutcomes?.filter((outcome) => outcome.status === 'failed') ?? [];
   const canMarkUnread = readStateWritable && !outbound;
-  const hasMobileMenu = canActAsOwner || canMarkUnread || message.hasRaw || translation.available;
+  const hasMobileMenu = canActAsOwner || canMarkUnread || message.hasRaw || (translation.available && !currentUser.receiveOnly);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -363,7 +363,7 @@ export function MessagePage() {
               </Button>
             </>
           )}
-          {translation.available && (
+          {translation.available && !currentUser.receiveOnly && (
             <Button
               variant="ghost"
               size="sm"
@@ -396,7 +396,7 @@ export function MessagePage() {
                     转发
                   </DropdownMenuItem>
                 )}
-                {translation.available && (
+                {translation.available && !currentUser.receiveOnly && (
                   <DropdownMenuItem onSelect={translation.toggle}>
                     <Languages className="size-4" />
                     {translation.translated ? '显示原文' : '翻译'}
@@ -417,14 +417,14 @@ export function MessagePage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <IconButton
+          {!currentUser.receiveOnly && <IconButton
             aria-label={message.isStarred ? '取消星标' : '加星标'}
             title={`${message.isStarred ? '取消星标' : '加星标'}（s）`}
             aria-pressed={message.isStarred}
             onClick={toggleStar}
           >
             <Star className={cn('size-4', message.isStarred ? 'fill-caution text-caution' : 'text-ink-tertiary')} />
-          </IconButton>
+          </IconButton>}
           {canMarkUnread && (
             <IconButton className="hidden sm:inline-grid" aria-label="标为未读" title="标为未读（Shift+U）" onClick={handleMarkUnread}>
               <Mail className="size-4" />

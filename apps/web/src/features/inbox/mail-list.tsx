@@ -17,7 +17,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { type FocusEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type FocusEvent, type MouseEvent, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ListMessagesQuery, MessageSummary } from '@hpc-mail/shared';
 import { queryKeys } from '@/api/query-keys';
@@ -33,6 +33,7 @@ import { toast } from '@/components/ui/toast';
 import { useMailboxesQuery } from '@/features/mailboxes/use-mailboxes';
 import { cn } from '@/lib/cn';
 import { useMediaQuery } from '@/lib/use-media-query';
+import { CurrentUserContext } from '@/lib/use-session';
 import { listMailView, mailHref } from './mail-view';
 import { syncReadState, syncRemovedMessages, syncStarState } from './message-cache';
 import { messageDetailQueryOptions } from './message-queries';
@@ -152,6 +153,7 @@ export function MailList({
   readOnly = false,
   emptyContent,
 }: MailListProps) {
+  const receiveOnly = useContext(CurrentUserContext)?.receiveOnly === true;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
@@ -188,8 +190,8 @@ export function MailList({
   );
   const { mutate: toggleStar } = useStarMutation(mailView);
   const handleToggleStar = useCallback(
-    (message: MessageSummary) => toggleStar({ id: message.id, starred: !message.isStarred }),
-    [toggleStar],
+    (message: MessageSummary) => { if (!receiveOnly) toggleStar({ id: message.id, starred: !message.isStarred }); },
+    [toggleStar, receiveOnly],
   );
 
   // ---- 悬停/聚焦行时预取详情（GET 无副作用；已读由详情页单独 POST）----
@@ -309,6 +311,7 @@ export function MailList({
 
   const batchDelete = useDeleteMessages(mutationScope, clearSelection);
   const removeMessages = (ids: number[]) => {
+    if (receiveOnly) return;
     const deletable = ownIds(ids);
     if (deletable.length === 0) {
       toast({ title: '共享邮箱里的邮件不能删除', variant: 'error' });
@@ -593,9 +596,11 @@ export function MailList({
                     title={selectedOwnCount === 0 ? SHARED_READ_ONLY : undefined}
                     onClick={() => markRead(selectedIds, false)}
                   />
-                  <BatchButton icon={Star} label="加星标" disabled={batchPending} onClick={() => batchStar.mutate({ ids: selectedIds, starred: true })} />
-                  <BatchButton icon={StarOff} label="取消星标" disabled={batchPending} onClick={() => batchStar.mutate({ ids: selectedIds, starred: false })} />
-                  <BatchButton icon={Trash2} label="删除" danger disabled={batchPending} onClick={() => removeMessages(selectedIds)} />
+                  {!receiveOnly && <>
+                    <BatchButton icon={Star} label="加星标" disabled={batchPending} onClick={() => batchStar.mutate({ ids: selectedIds, starred: true })} />
+                    <BatchButton icon={StarOff} label="取消星标" disabled={batchPending} onClick={() => batchStar.mutate({ ids: selectedIds, starred: false })} />
+                    <BatchButton icon={Trash2} label="删除" danger disabled={batchPending} onClick={() => removeMessages(selectedIds)} />
+                  </>}
                 </>
               )}
               <IconButton size="sm" aria-label="取消选择" onClick={clearSelection}>
@@ -639,6 +644,7 @@ export function MailList({
                 href={mailHref(message.id, query)}
                 linkState={linkState}
                 onToggleStar={handleToggleStar}
+                canStar={!receiveOnly}
                 selected={selection.has(message.id)}
                 checkbox={checkbox}
                 tapToSelect={tapToSelect}

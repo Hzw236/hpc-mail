@@ -9,6 +9,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { createDb } from '../db/client.js';
 import { users } from '../db/schema.js';
 import { AppError } from '../lib/errors.js';
+import { assertReceiveOnlyRequest, isReceiveOnly } from '../lib/receive-only.js';
 import { verifyToken, type JwtClaims } from '../lib/jwt.js';
 import { getUserEpoch, sessionValidFor } from '../services/session.js';
 import { getSettings } from '../services/setting.js';
@@ -41,6 +42,7 @@ interface AuthRow {
   created_at: number;
   avatar_key: string | null;
   totp_enabled_at: number | null;
+  mailbox_policy: string | null;
 }
 
 /**
@@ -61,6 +63,7 @@ export const requireAuth: MiddlewareHandler<AppContext> = async (c, next) => {
   const authUser = (await fastAuth(c, claims)) ?? (await slowAuth(c, claims));
   c.set('user', authUser);
   c.set('sessionId', claims.sid);
+  assertReceiveOnlyRequest(authUser, c.req.method, c.req.path);
   await next();
 };
 
@@ -97,7 +100,7 @@ async function fastAuth(c: Context<AppContext>, claims: JwtClaims): Promise<Auth
   const [authResult, securityResult, userRateResult, globalRateResult] = await db.batch([
     // 用户按 claims.sub 取（与原先「先验会话、再按 sub 查用户」一致），LEFT JOIN 以区分用户缺失
     db.prepare(`SELECT s.user_id AS session_user_id, s.revoked_at, s.expires_at, u.id, u.username, u.role, u.status, u.auth_version,
-        u.auth_version_migrated, u.created_at, u.avatar_key, u.totp_enabled_at
+        u.auth_version_migrated, u.created_at, u.avatar_key, u.totp_enabled_at, u.mailbox_policy
       FROM sessions s LEFT JOIN users u ON u.id = ? WHERE s.id = ?`).bind(claims.sub, claims.sid),
     db.prepare(`SELECT value FROM settings WHERE key = 'security'`),
     counterStatement(c.env, 'auth-user', String(claims.sub), minute, 1, 0, guard),
@@ -131,6 +134,7 @@ async function fastAuth(c: Context<AppContext>, claims: JwtClaims): Promise<Auth
     createdAt: new Date(Number(row.created_at)),
     avatarKey: row.avatar_key,
     twoFactorEnabled: row.totp_enabled_at !== null,
+    receiveOnly: isReceiveOnly(row.role, row.mailbox_policy),
   };
   const securityRaw = (securityResult?.results?.[0] as { value?: string } | undefined)?.value;
   await assertTwoFactorSatisfied(c, authUser, async () => parseRequire2fa(securityRaw));
@@ -155,6 +159,7 @@ async function slowAuth(c: Context<AppContext>, claims: JwtClaims): Promise<Auth
       createdAt: users.createdAt,
       avatarKey: users.avatarKey,
       totpEnabledAt: users.totpEnabledAt,
+      mailboxPolicy: users.mailboxPolicy,
     })
     .from(users)
     .where(eq(users.id, claims.sub))
@@ -179,6 +184,7 @@ async function slowAuth(c: Context<AppContext>, claims: JwtClaims): Promise<Auth
     createdAt: row.createdAt,
     avatarKey: row.avatarKey,
     twoFactorEnabled: !!row.totpEnabledAt,
+    receiveOnly: isReceiveOnly(row.role, row.mailboxPolicy),
   };
   await assertTwoFactorSatisfied(c, authUser, async () =>
     (await getSettings(c.env)).security.require2fa);

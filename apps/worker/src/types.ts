@@ -30,6 +30,7 @@ export interface AuthUser {
   createdAt: Date;
   avatarKey: string | null;
   twoFactorEnabled: boolean;
+  receiveOnly?: boolean;
 }
 
 /** /v1 API Key 鉴权后的上下文 */

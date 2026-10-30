@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AtSign, Inbox, MoreHorizontal, Pencil, Plus, Share2, Trash2 } from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useContext, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Mailbox } from '@hpc-mail/shared';
 import { invalidateMailboxOwnership, queryKeys } from '@/api/query-keys';
@@ -28,6 +28,7 @@ import { toast } from '@/components/ui/toast';
 import { formatDateTime } from '@/lib/format';
 import { useDomains } from '@/lib/use-config';
 import { useIsMobile } from '@/lib/use-media-query';
+import { CurrentUserContext } from '@/lib/use-session';
 import { ClaimDialog } from './claim-dialog';
 import { useMailboxesQuery, useSharedMailboxesQuery } from './use-mailboxes';
 import { OwnMailboxShareDialog } from './mailbox-share-dialog';
@@ -184,11 +185,13 @@ function AddressCell({ address }: { address: string }) {
 
 function MailboxCards({
   items,
+  receiveOnly = false,
   onEdit,
   onRelease,
   onShare,
 }: {
   items: Mailbox[];
+  receiveOnly?: boolean;
   onEdit: (mailbox: Mailbox) => void;
   onRelease: (mailbox: Mailbox) => void;
   onShare: (mailbox: Mailbox) => void;
@@ -219,19 +222,19 @@ function MailboxCards({
                   <Inbox className="size-4 text-ink-tertiary" />
                   查看邮件
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onShare(mailbox)}>
+                {!receiveOnly && <DropdownMenuItem onSelect={() => onShare(mailbox)}>
                   <Share2 className="size-4 text-ink-tertiary" />
                   共享邮箱
-                </DropdownMenuItem>
+                </DropdownMenuItem>}
                 <DropdownMenuItem onSelect={() => onEdit(mailbox)}>
                   <Pencil className="size-4 text-ink-tertiary" />
                   编辑备注
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem tone="danger" onSelect={() => onRelease(mailbox)}>
+                {!receiveOnly && <DropdownMenuSeparator />}
+                {!receiveOnly && <DropdownMenuItem tone="danger" onSelect={() => onRelease(mailbox)}>
                   <Trash2 className="size-4" />
                   释放地址
-                </DropdownMenuItem>
+                </DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           }
@@ -242,6 +245,7 @@ function MailboxCards({
 }
 
 export function MailboxesPage() {
+  const receiveOnly = useContext(CurrentUserContext)?.receiveOnly === true;
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const domainsQuery = useDomains();
@@ -290,7 +294,7 @@ export function MailboxesPage() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="我的邮箱"
-        description="认领邮箱地址收发邮件，也可把来信只读共享给其他用户。"
+        description={receiveOnly ? '在管理员授权的域名下创建邮箱前缀，查看自己邮箱的来信。' : '认领邮箱地址收发邮件，也可把来信只读共享给其他用户。'}
         actions={
           <Button disabled={!visibleDomains?.length} onClick={openClaim}>
             <Plus className="size-4" />
@@ -308,12 +312,12 @@ export function MailboxesPage() {
         <EmptyState
           icon={AtSign}
           title="还没有认领任何地址"
-          description="认领一个地址后即可收发邮件。"
+          description={receiveOnly ? '创建一个邮箱前缀后即可接收邮件。' : '认领一个地址后即可收发邮件。'}
           action={<Button disabled={!visibleDomains?.length} onClick={openClaim}>认领地址</Button>}
           className="rounded-lg border border-line bg-surface"
         />
       ) : isMobile ? (
-        <MailboxCards items={items} onEdit={setEditing} onRelease={setReleasing} onShare={setSharing} />
+        <MailboxCards items={items} receiveOnly={receiveOnly} onEdit={setEditing} onRelease={setReleasing} onShare={setSharing} />
       ) : (
         <Table>
           <TableHeader>
@@ -336,15 +340,15 @@ export function MailboxesPage() {
                 <TableCell className="text-ink-tertiary">{formatDateTime(mailbox.createdAt)}</TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
-                    <IconButton size="sm" aria-label={`共享 ${mailbox.address}`} onClick={() => setSharing(mailbox)}>
+                    {!receiveOnly && <IconButton size="sm" aria-label={`共享 ${mailbox.address}`} onClick={() => setSharing(mailbox)}>
                       <Share2 className="size-4" />
-                    </IconButton>
+                    </IconButton>}
                     <IconButton size="sm" aria-label="编辑备注" onClick={() => setEditing(mailbox)}>
                       <Pencil className="size-4" />
                     </IconButton>
-                    <IconButton size="sm" aria-label="释放地址" onClick={() => setReleasing(mailbox)}>
+                    {!receiveOnly && <IconButton size="sm" aria-label="释放地址" onClick={() => setReleasing(mailbox)}>
                       <Trash2 className="size-4 text-critical" />
-                    </IconButton>
+                    </IconButton>}
                   </div>
                 </TableCell>
               </TableRow>
@@ -353,7 +357,7 @@ export function MailboxesPage() {
         </Table>
       )}
 
-      <section className="mt-8" aria-label="共享给我的邮箱">
+      {!receiveOnly && <section className="mt-8" aria-label="共享给我的邮箱">
         <h2 className="text-base font-semibold text-ink">共享给我的邮箱</h2>
         <p className="mb-3 mt-1 text-sm text-ink-secondary">可查看历史和新来信、验证码与附件；只读共享不提供发信或删除权限。</p>
         {shared.isLoading ? <Skeleton className="h-24 w-full rounded-lg" />
@@ -367,7 +371,7 @@ export function MailboxesPage() {
               actions={<Button asChild size="sm" variant="secondary"><Link to={inboxHref(mailbox.address)}>查看来信</Link></Button>}
             />)}
           </CardList>}
-      </section>
+      </section>}
 
       <ClaimDialog open={claimOpen} onOpenChange={setClaimOpen} domains={visibleDomains ?? []} initialDomain={claimDomain} />
       <EditMailboxDialog mailbox={editing} onClose={() => setEditing(null)} />

@@ -63,6 +63,10 @@ export function AuthGuard() {
     );
   }
 
+  if (user.role !== 'admin' && user.receiveOnly && !/^\/(?:inbox|mail\/\d+|mailboxes|profile)?\/?$/.test(location.pathname)) {
+    return <Navigate to="/inbox" replace />;
+  }
+
   return (
     <CurrentUserContext.Provider value={user}>
       <AppShell key={token} />

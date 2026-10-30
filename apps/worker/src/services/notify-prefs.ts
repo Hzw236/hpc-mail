@@ -13,6 +13,7 @@ import { chunk } from '../lib/d1.js';
 import { createDb } from '../db/client.js';
 import { settings as settingsTable, users } from '../db/schema.js';
 import { AppError } from '../lib/errors.js';
+import { isReceiveOnly } from '../lib/receive-only.js';
 import type { Env } from '../types.js';
 import { validateFeishuWebhookUrl } from './feishu.js';
 import { validatePushDeerEndpoint } from './pushdeer.js';
@@ -88,11 +89,12 @@ async function readLegacyGlobalNotify(env: Env): Promise<UserNotifyPrefs | null>
 export async function getUserNotifyPrefs(env: Env, userId: number): Promise<UserNotifyPrefs> {
   const db = createDb(env);
   const row = await db
-    .select({ notifyPrefs: users.notifyPrefs, role: users.role })
+    .select({ notifyPrefs: users.notifyPrefs, role: users.role, mailboxPolicy: users.mailboxPolicy })
     .from(users)
     .where(eq(users.id, userId))
     .get();
   if (!row) return clone(DEFAULT_USER_NOTIFY_PREFS);
+  if (isReceiveOnly(row.role, row.mailboxPolicy)) return clone(DEFAULT_USER_NOTIFY_PREFS);
   if (row.notifyPrefs) return normalize(row.notifyPrefs);
   if (row.role === 'admin') {
     const legacy = await readLegacyGlobalNotify(env);
@@ -109,11 +111,12 @@ export interface NotifyOwner {
 
 /** users 表一行（notifyPrefs 为已解析的 JSON 值）→ 归属人状态与偏好；未配置的管理员继承旧全局设置 */
 function ownerFromRow(
-  row: { status: string; role: string; notifyPrefs: unknown },
+  row: { status: string; role: string; notifyPrefs: unknown; mailboxPolicy?: unknown },
   legacy: UserNotifyPrefs | null | undefined,
 ): NotifyOwner {
   let prefs: UserNotifyPrefs;
-  if (row.notifyPrefs) prefs = normalize(row.notifyPrefs);
+  if (isReceiveOnly(row.role, row.mailboxPolicy)) prefs = clone(DEFAULT_USER_NOTIFY_PREFS);
+  else if (row.notifyPrefs) prefs = normalize(row.notifyPrefs);
   else if (row.role === 'admin') prefs = clone(legacy ?? DEFAULT_USER_NOTIFY_PREFS);
   else prefs = clone(DEFAULT_USER_NOTIFY_PREFS);
   return { active: row.status === 'active', prefs };
@@ -133,7 +136,7 @@ export async function loadNotifyOwners(env: Env, userIds: number[]): Promise<Map
   let legacy: UserNotifyPrefs | null | undefined;
   for (const batch of chunk(ids)) {
     const rows = await db
-      .select({ id: users.id, status: users.status, role: users.role, notifyPrefs: users.notifyPrefs })
+      .select({ id: users.id, status: users.status, role: users.role, notifyPrefs: users.notifyPrefs, mailboxPolicy: users.mailboxPolicy })
       .from(users)
       .where(inArray(users.id, batch))
       .all();
@@ -151,6 +154,7 @@ export interface NotifyOwnerRawRow {
   status: string;
   role: string;
   notify_prefs: string | null;
+  mailbox_policy?: string | null;
 }
 
 /**
@@ -164,7 +168,8 @@ export function notifyOwnersFromRows(
   const out = new Map<number, NotifyOwner>();
   let legacy: UserNotifyPrefs | null | undefined;
   for (const raw of rows) {
-    const row = { status: raw.status, role: raw.role, notifyPrefs: raw.notify_prefs === null ? null : JSON.parse(raw.notify_prefs) as unknown };
+    const row = { status: raw.status, role: raw.role, notifyPrefs: raw.notify_prefs === null ? null : JSON.parse(raw.notify_prefs) as unknown,
+      mailboxPolicy: raw.mailbox_policy };
     if (needsLegacy(row) && legacy === undefined) legacy = legacyFromRows(legacyRows);
     out.set(Number(raw.id), ownerFromRow(row, legacy));
   }

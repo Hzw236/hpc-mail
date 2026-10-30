@@ -205,6 +205,7 @@ function SideLink({
 function NavSections({
   isAdmin,
   hostedDomains,
+  receiveOnly = false,
   full,
   unreadCount,
   onNavigate,
@@ -212,14 +213,17 @@ function NavSections({
   isAdmin: boolean;
   /** 站点开放了域名托管才显示「我的域名」 */
   hostedDomains: boolean;
+  receiveOnly?: boolean;
   full: boolean;
   unreadCount: number;
   onNavigate?: () => void;
 }) {
-  const primary = hostedDomains ? PRIMARY_NAV : PRIMARY_NAV.filter((entry) => entry.to !== '/domains');
+  const primary = receiveOnly
+    ? PRIMARY_NAV.filter((entry) => ['/inbox', '/mailboxes', '/profile'].includes(entry.to))
+    : hostedDomains ? PRIMARY_NAV : PRIMARY_NAV.filter((entry) => entry.to !== '/domains');
   return (
     <nav className="flex flex-col gap-1 p-2">
-      <ComposeButton full={full} onNavigate={onNavigate} />
+      {!receiveOnly && <ComposeButton full={full} onNavigate={onNavigate} />}
       {primary.map((entry) => (
         <SideLink
           key={entry.to}
@@ -321,6 +325,7 @@ export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const isAdmin = user.role === 'admin';
+  const receiveOnly = !isAdmin && user.receiveOnly === true;
   const hostedDomains = config?.hostedDomainsEnabled === true;
   const siteTitle = config?.siteTitle ?? 'HPC Mail';
   const unreadCount = unread?.unread ?? 0;
@@ -337,7 +342,7 @@ export function AppShell() {
           <span className="ml-2 hidden truncate text-sm font-semibold text-ink lg:inline">{siteTitle}</span>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <NavSections isAdmin={isAdmin} hostedDomains={hostedDomains} full={false} unreadCount={unreadCount} />
+          <NavSections isAdmin={isAdmin} hostedDomains={hostedDomains} receiveOnly={receiveOnly} full={false} unreadCount={unreadCount} />
         </div>
         <div className="border-t border-line p-2">
           <NavLink
@@ -368,6 +373,7 @@ export function AppShell() {
               <NavSections
                 isAdmin={isAdmin}
                 hostedDomains={hostedDomains}
+                receiveOnly={receiveOnly}
                 full
                 unreadCount={unreadCount}
                 onNavigate={() => setMenuOpen(false)}
@@ -419,11 +425,12 @@ export function AppShell() {
         // 仅在可见时带标记：Toast 等路由外的层据此在小屏避让底部导航
         data-bottom-nav={bottomNavHidden ? undefined : ''}
         className={cn(
-          'fixed inset-x-0 bottom-0 z-30 grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden',
+          'fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden',
+          receiveOnly ? 'grid-cols-3' : 'grid-cols-4',
           bottomNavHidden ? 'hidden' : 'grid',
         )}
       >
-        {MOBILE_NAV.map((entry) => {
+        {(receiveOnly ? PRIMARY_NAV.filter((entry) => ['/inbox', '/mailboxes', '/profile'].includes(entry.to)) : MOBILE_NAV).map((entry) => {
           const Icon = entry.icon;
           const showCount = entry.to === '/inbox' && unreadCount > 0;
           return (

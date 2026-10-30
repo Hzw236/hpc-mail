@@ -23,6 +23,7 @@ export function MailboxPolicyDialog({ target, onClose }: { target: AdminUser | n
   const settings = useQuery({ queryKey: queryKeys.admin.settings, queryFn: adminApi.getSettings, enabled: target !== null });
   const [mode, setMode] = useState<'public' | 'custom'>('public');
   const [total, setTotal] = useState('50');
+  const [receiveOnly, setReceiveOnly] = useState(false);
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [revision, setRevision] = useState(0);
   const [customInitialized, setCustomInitialized] = useState(false);
@@ -34,6 +35,7 @@ export function MailboxPolicyDialog({ target, onClose }: { target: AdminUser | n
   function load(user: AdminUser) {
     setMode(user.mailboxPolicy ? 'custom' : 'public');
     setTotal(String(user.mailboxPolicy?.perUserLimit ?? 50));
+    setReceiveOnly(user.mailboxPolicy?.receiveOnly === true);
     setLimits(Object.fromEntries((user.mailboxPolicy?.domains ?? []).map((entry) => [entry.domain, String(entry.perUserLimit)])));
     setRevision(user.mailboxPolicyRevision);
     setCustomInitialized(user.mailboxPolicy !== null);
@@ -106,7 +108,7 @@ export function MailboxPolicyDialog({ target, onClose }: { target: AdminUser | n
     for (const [domain, value] of Object.entries(limits)) nextErrors[domain] = limitError(value);
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
-    const parsed = userMailboxPolicySchema.safeParse({ perUserLimit: Number(total),
+    const parsed = userMailboxPolicySchema.safeParse({ perUserLimit: Number(total), ...(receiveOnly ? { receiveOnly: true } : {}),
       domains: Object.entries(limits).map(([domain, value]) => ({ domain, perUserLimit: Number(value) })) });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? '请检查输入');
@@ -144,6 +146,12 @@ export function MailboxPolicyDialog({ target, onClose }: { target: AdminUser | n
               ) : (
                 <>
                   <p className="text-sm text-ink-secondary">以下域名与数量替代公共配置，可单独授权非公开域名。0 表示不限。</p>
+                  <label className="flex items-start gap-3 rounded-md border border-line p-3">
+                    <Checkbox checked={receiveOnly} onCheckedChange={(value) => setReceiveOnly(value === true)} aria-label="仅收信" />
+                    <span className="text-sm"><span className="font-medium">仅收信</span>
+                      <span className="mt-1 block text-xs text-ink-secondary">只读自己邮箱的来信、创建前缀和修改备注；禁止发信、转发通知、共享、删除和 API Key，保留账户安全设置。</span>
+                    </span>
+                  </label>
                   <FormField label="邮箱总数上限" description={`所有名下邮箱合计；当前 ${target?.mailboxCount ?? 0} 个。`} error={errors.total}>
                     {(field) => <Input {...field} type="number" min={0} max={10000} step={1} value={total}
                       onChange={(event) => setTotal(event.target.value)}
@@ -186,7 +194,7 @@ export function MailboxPolicyDialog({ target, onClose }: { target: AdminUser | n
                 </>
               )}
             </fieldset>
-            <p className="text-xs text-ink-tertiary">已有邮箱继续收发并计入额度。专属配置同时约束新增认领和管理员过户；共享邮箱不占额度，系统保留前缀仍受限制。</p>
+            <p className="text-xs text-ink-tertiary">已有邮箱继续计入额度。仅收信限制会立即应用到现有会话和 API Key。域名与数量配置同时约束新增认领和管理员过户，系统保留前缀仍受限制。</p>
             {error && <p role="alert" className="text-sm text-critical">{error}</p>}
             {conflict && <Button type="button" variant="secondary" loading={reloading} onClick={() => void reload()}>重新加载配置</Button>}
           </DialogBody>

@@ -73,6 +73,19 @@ describe('hidesBottomNav', () => {
 });
 
 describe('AppShell', () => {
+  it('仅收信用户的桌面与移动导航只提供收件箱、邮箱和个人设置', async () => {
+    const { client } = renderShell('/inbox', { ...user, receiveOnly: true });
+    await waitFor(() => expect(document.title).toBe('(45) 收件箱 · HPC Mail'));
+    const destinations = screen.getAllByRole('link').map((link) => link.getAttribute('href'));
+    expect(destinations).toContain('/inbox');
+    expect(destinations).toContain('/mailboxes');
+    expect(destinations).toContain('/profile');
+    for (const path of ['/compose', '/sent', '/starred', '/trash', '/api-keys', '/domains', '/admin/users']) {
+      expect(destinations).not.toContain(path);
+    }
+    client.clear();
+  });
+
   it('标签页标题带未读数，切页跟随路由标题，页面可覆盖', async () => {
     const { client, router } = renderShell('/inbox');
     await waitFor(() => expect(document.title).toBe('(45) 收件箱 · HPC Mail'));

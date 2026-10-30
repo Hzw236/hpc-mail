@@ -5,6 +5,7 @@ import { createDb } from '../db/client.js';
 import { mailboxShares, mailboxes, users } from '../db/schema.js';
 import { chunk } from '../lib/d1.js';
 import { AppError } from '../lib/errors.js';
+import { sharedMailAllowed } from '../lib/receive-only.js';
 import type { Env } from '../types.js';
 
 function assertManageableMailbox<T extends { userId: number }>(
@@ -289,7 +290,7 @@ export async function listSharedMailboxes(env: Env, userId: number): Promise<Sha
     .from(mailboxShares)
     .innerJoin(mailboxes, eq(mailboxes.id, mailboxShares.mailboxId))
     .innerJoin(users, eq(users.id, mailboxes.userId))
-    .where(and(eq(mailboxShares.userId, userId), eq(users.status, 'active')))
+    .where(and(eq(mailboxShares.userId, userId), eq(users.status, 'active'), sharedMailAllowed(userId)))
     .orderBy(asc(mailboxes.address))
     .all();
   return rows;
